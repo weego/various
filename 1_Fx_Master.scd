@@ -1,25 +1,46 @@
 /*
+// git version unifying everything from all Master FX i ever had :)
+
+ToDo:
+- ServerOptions -- turboDelay blows up...
+
 dependencies:
-~metroIn (MURF)
-~amp
-~bpm
+Ndef(\metroIn) 	( 19MURF )
+Ndef(\bpm)		( 2DelaySt, 5RHPF )
 
 ToDo Pauls:
 - Master Channel management:
 - mix all / keep split
 - open indiv. chans (or better on mixer?!)
--
 
+test sound:
+Server.killAll;
+s.boot;
+Ndef(\nois, {PinkNoise.ar(0.2! 2)}).play;
+Ndef(\pulzes, { [Pulse, LFTri, SinOsc, Blip].collect(_.ar( ExpRand(5, 800) )).scramble.pow(0.25).product.dup * 2 }).play;
+Ndef(\pulzes).gui;
 */
 
 // MC fine tweaked 2014 for Sakra Pauls
 
-
+q=q?();
+q.mfx = q.mfx ? ();
 q.numChans = q.numChans ? 2;
 
 
+// tempo dependencies //
+if( Ndef(\bpm).source.isNil  ){ Ndef(\bpm, {|bpm=80| bpm })  };
+Ndef(\bpm).set(\bpm, rrand(50, 130).postcln );
 
+if( Ndef(\metroIn).source.isNil  ){
+	Ndef(\metroIn, {|bpm=80| Impulse.kr(Ndef(\bpm).kr/60 * 2*[2,1,0.5, 0.25, 0.125]) })
+};
+(
 // and specs for them fof gui control.
+600.do{|i| Spec.add( ("wet" ++ i).asSymbol, \unipolar); };
+600.do{|i| Spec.add( ("mix" ++ i).asSymbol, \unipolar); };
+Spec.add(\speeD, [4, 0, 0, 1]);
+Spec.add(\inChan, [0, 8, 0, 1]);
 Spec.add( \level, [0, 20, 5]);
 Spec.add( \llag, [0, 600, 8]);
 Spec.add( \rLag, \llag);
@@ -44,8 +65,10 @@ Spec.add( \loCut, \freq);
 
 Spec.add( \lowCut, \freq);
 Spec.add( \higCut, \freq);
-Spec.add( \loMid, [40, 250, \exp]);
-Spec.add( \midDB, \db);
+Spec.add( \midFr, [40, 12000, \exp, 1]);
+Spec.add( \midDB, [-20, 20]);
+Spec.add( \drive, [1, 5, \exp]);
+Spec.add( \patt, [0, 36, \lin, 1]);
 
 Spec.add( \gainL, [0.1, 10, \exp]);
 Spec.add( \gainR, [0.1, 10, \exp]);
@@ -66,7 +89,7 @@ Spec.add( \modulatie, [0, 1, \lin]);
 Spec.add( \modulaNon, [0, 1, \lin]);
 Spec.add( \bit, [16, 2, \lin, 1]);
 Spec.add( \downsmod, [0, 1, \lin]);
-Spec.add( \downsample, [s.sampleRate/2, 100, \lin]);
+Spec.add( \downsample, [44100/2, 100, \lin]);
 Spec.add( \dAmp, \amp);
 Spec.add( \dFreq, \freq);
 Spec.add( \pregain, [0.01, 20, \linear]);
@@ -130,10 +153,10 @@ Spec.add(\leakCoeff, [0.9, 0.998]);
 Spec.add(\combScale, [0.1, 2, \exp]);
 Spec.add(\apScale, [0.1, 2, \exp]);
 Spec.add(\direct, \amp);
-
+);
 (
 // add your own fx stuff here!
-q.fx = IdentityDictionary
+q.mfx.fx = IdentityDictionary
 [
 	'00_in' -> { arg in, level=1, llag=0.2, noisefloor=0.001;
 		LeakDC.ar(in * level.lag(llag) )
@@ -189,7 +212,7 @@ q.fx = IdentityDictionary
 		split.sum;
 	}
 	,
-	'0_par-EQ' -> { arg in, pFreq=90, pRq=0.9, pDb=5;
+	'0_par_EQ' -> { arg in, pFreq=90, pRq=0.9, pDb=5;
 		BPF.ar(in, pFreq, pRq, pDb.dbamp) + in
 	}
 	,
@@ -221,7 +244,7 @@ q.fx = IdentityDictionary
 	'1fyrFilt' -> { |in, sens=1|
 		var timer, changeTrig, rq, ffreq1, ffreq2;
 		var pitch = Pitch.kr(in, median: 5);
-		pitch = pitch.flop.postln[0].fold(80, 10000).lag(1/20);
+		pitch = pitch.flop[0].fold(80, 10000).lag(1/20);
 		changeTrig = (HPZ1.kr(pitch.cpsmidi.round(1/sens)).abs
 			> (5/sens));
 		changeTrig = Trig.kr(changeTrig, SinOsc.kr(0.12).range(0.1, 2));
@@ -239,7 +262,7 @@ q.fx = IdentityDictionary
 	}
 	,
 
-	'19MURF' -> { | in, rq= 0.2, drive = 2, gain=1, patt =0|
+	'19MURF' -> { | in, rq= 0.2, drive = 2, gain=1, speeD=2, patt =0|
 		var bands = [200, 300, 450, 675, 1000, 1500, 2200, 3400];
 		var numBands = bands.size;
 		var insm = in * Line.kr(0,1,0.01);
@@ -248,11 +271,10 @@ q.fx = IdentityDictionary
 			pipe = pipe.madd(drive).distort;
 			MoogFF.ar(pipe * Line.kr(0,1,0.01), bands, gain) * 6;
 		}).flop;
-		var metro16 = A2K.kr( Trig.ar( ~metroIn.ar(1, 0), ControlDur.ir));
-		var metro025 =  ~metroIn.ar(1, 4);
-		// 			var vary = A2K.kr( Decay.ar( metro025 / 18, 2)).round(0.2);
-		var vary = A2K.kr( TIRand.ar(0, 3, metro025)).madd(pi);
-		var steps = Stepper.kr( PulseDivider.kr(metro16, 2) );
+		var metro16 =   Ndef(\metroIn).kr(1, speeD);
+		var metro025 =  Ndef(\metroIn).kr(1, (speeD+2).max(4));
+		var vary =  TIRand.kr(0, 3, metro025).madd(pi);
+		var steps = Stepper.kr(  metro16  );
 		var restep = (
 			Hasher.kr(steps + vary + patt.madd(0.1) ) % 1 * numBands
 		).trunc;
@@ -262,7 +284,7 @@ q.fx = IdentityDictionary
 
 	'2DelaySt'	-> { arg in, delayTime1 = 1, delayTime2 = 0.76, mod=0.66, feedback=3;
 		var dtKr, comb, tempo;
-		tempo = 15 / ~bpm.kr;   // quarter tempo..
+		tempo = 15 / Ndef(\bpm).kr;   // quarter tempo..
 		dtKr = [delayTime1, delayTime2 ].lag(1.0);
 		comb = CombL.ar(
 			HPF.ar(in, 200),
@@ -319,7 +341,7 @@ q.fx = IdentityDictionary
 		} ! n;
 		var trigz = modz + 0.1 + Impulse.kr(0) > 0;
 		var dts = mainDT.lag2(glide) * (TRand.kr(0.1, 1, trigz ) + 0.001);
-		var dly = DelayL.ar(mixIn, 6, dts, modz.clip(0, 1));
+		var dly = DelayL.ar(mixIn, 3, dts, modz.clip(0, 1));
 
 		LocalOut.ar(LeakDC.ar(dly.mean));
 
@@ -328,10 +350,11 @@ q.fx = IdentityDictionary
 	}
 	,
 
+
 	'5RHPF'	-> { arg in, freqH = 400, modH =0.5, rqH =0.75;
 		var fr, seq, tempo;
-		tempo = ~bpm.kr / 60;   // quarter tempo..
-		fr = SinOsc.kr((modH * tempo), [0, 0.4]).exprange(0.5, 3).madd(freqH).fold(20, 19000);
+		tempo = Ndef(\bpm).kr / 60;   // quarter tempo..
+		fr = SinOsc.kr((modH * tempo), [0, 0.4]).pow(Rand(0.7,1.4)).exprange(0.5, 3).madd(freqH).fold(20, 19000);
 		RHPF.ar(in, fr, rqH)
 	}
 	,
@@ -364,8 +387,6 @@ q.fx = IdentityDictionary
 	'3ParF' -> { arg in, spreadX=2, gainX=1, pitpit=0;
 		var pix, l, r, freqs, amp, verso;
 		in = in * gainX;
-		//		amp = ~amp.kr(1);
-		//		pix = ~pitch.kr(2);
 		amp = Amplitude.kr(in, 0.01, 0.2);
 		pix = Pitch.kr(in).lag(0.01, 0.5);
 		verso = pitpit.clip(0,1).madd(2, -1) * (pix[1] - 0.5) * [1, -1] + 0.5;
@@ -511,12 +532,15 @@ q.fx = IdentityDictionary
 		// Scramble.ar(in);
 		in.scramble
 	},
-	'9aorderWheel'-> { | in|
+/*	'9aorderWheel'-> { | in|
 		in[[0, 2, 1, 3]]
-	},
+	},*/
 
 	'8monomix'-> { | in |
 		in.mean.dup(q.numChans);
+	},
+	'8stereofy'-> { | in |
+		Splay.ar(in);
 	},
 	'9springPan' -> { arg in, speedA=0.05, pAN=0,  shape = 1, widthA=2;
 		var excurs = speedA > 0 * 3;
@@ -534,9 +558,9 @@ q.fx = IdentityDictionary
 		);
 	},
 
-	'9endFil' -> { arg in, higCut=19000, lowCut=20, loMid=111, midDB= -9;
+	'9endFil' -> { arg in, higCut=19000, lowCut=20, midFr= 100, midDB= 3;
 		var l, h;
-		in = MidEQ.ar(in, loMid, 2, midDB);
+		in = MidEQ.ar(in, midFr, 2, midDB);
 		l = LPF.ar( in, lowCut);
 		h = LPF.ar( in, higCut);
 		h-l;
@@ -550,8 +574,8 @@ q.fx = IdentityDictionary
 	'9netAnalysis' -> { arg in;
 		var metro = Impulse.kr(50);
 		//	var ampsFast4 = Amplitude.kr(in, 0.01, 1);
-		var ampsSlow = Amplitude.kr(in, 2, 10);
-		var ampsSuperSlow = Amplitude.kr(in, 10, 100);
+		var ampsSlow = Amplitude.kr(in, 2, 10).lag3(3);
+		var ampsSuperSlow = Amplitude.kr(in, 10, 100).lag3(5);
 		var tendency = ampsSlow.mean - ampsSuperSlow.mean;
 
 		//	SendReply.kr(metro, '/compass', ampsFast4);
@@ -567,25 +591,29 @@ q.fx = IdentityDictionary
 // Analysis / to Network
 //  ToDo: Pitch stuff / Light organ
 (
+q.netAddr = q.netAddr ??  { NetAddr("localhost", 571200); };
+
 OSCdef(\netAnalysis_0, { |msg|
 	var arr = msg.drop(3);
 	var peak = arr.indexOf(arr.maxItem);
-	var balLR = arr[1] - arr[0];
-	var balFR = arr[3] - arr[2];
+	var quad = arr.wrapExtend(4);
+	var balLR = quad[1] - quad[0];
+	var balFR = quad[3] - quad[2];
 	var posPoint = Point(balLR, balFR);
 	q.qPos = posPoint;
-	q.michal.sendMsg("/amps", arr.mean);
-	q.michal.sendMsg("/compass", #[\w, \e, \n, \s].clipAt(peak));
-	q.michal.sendMsg("/gravityPointXY", balLR,  balFR);
+	q.netAddr.sendMsg("/amps", arr.mean);
+	q.netAddr.sendMsg("/compass", #[\w, \e, \n, \s].clipAt(peak));
+	q.netAddr.sendMsg("/gravityPointXY", balLR,  balFR);
 }, '/ampsSlow').permanent_(true);
 
 OSCdef(\netAnalysis_1, { |msg|
-	q.ampsSuperSlow = msg.drop(3).mean;
-	q.michal.sendMsg("/ampsSuperSlow", (msg[3]));
+	q.ampSuperSlow = msg.drop(3).mean;
+	q.netAddr.sendMsg("/ampsSuperSlow", (msg[3]));
 }, '/ampsSuperSlow').permanent_(true);
 
 OSCdef(\netAnalysis_2, { |msg|
-	q.michal.sendMsg("/ampTendency", (msg[3]));
+	q.ampTendency = msg[3];
+	q.netAddr.sendMsg("/ampTendency", (msg[3]));
 }, '/tendency').permanent_(true);
 );
 // e.o. Analysis / to Network
@@ -595,37 +623,109 @@ OSCdef(\netAnalysis_2, { |msg|
 
 
 // add them to da Chain
-q.fx.keysValuesDo({ |key,val| // key.postcln;
+q.mfx.fx.keysValuesDo({ |key,val| // key.postcln;
 	ProxyChain.add(key.asSymbol, \filterIn -> val)
 });
 
 (
-q.mFX = MasterFX.new(server: s,
+q.mfx.mFX = MasterFX.new(server: s,
 	numChannels: q.numChans,
-	slotNames: q.fx.keys.reject({|it|
-		['1sluu', '3funFilt', '3ParF', '19MURF'].includes(it)
-	}).asArray.sort,
+	slotNames: q.mfx.fx.keys
+//	.reject({|it| ['1sluu', '3funFilt', '3ParF', '19MURF'].includes(it)})
+	.asArray.sort,
 	busIndex: 0
 );
 
 // pre-set ons:
 
-q.mFX.pxChain.add('00_in', 1);
-q.mFX.pxChain.add('0_DBComp', 1);
-//q.mFX.pxChain.add('1fyrFilt', 0.1);
-//q.mFX.pxChain.add('0turboDLY', 0.1);
-q.mFX.pxChain.add('9endFil', 1);
-q.mFX.pxChain.add('ampFin', 1);
-q.mFX.pxChain.add('9netAnalysis', 1);
+q.mfx.mFX.pxChain.add('00_in', 1);
+q.mfx.mFX.pxChain.add('0_DBComp', 1);
+q.mfx.mFX.pxChain.add('1fyrFilt', 0.1);
+// q.mFX.pxChain.add('0turboDLY', 0.1);
+q.mfx.mFX.pxChain.add('9endFil', 1);
+q.mfx.mFX.pxChain.add('ampFin', 1);
 
 
-q.guiMaFX = q.mFX.gui('ma master', 40);
+q.mfx.guiMaFX = q.mfx.mFX.gui('ma master', 40);
+q.mfx.mFX.pxChain.proxy.fadeTime = 3;
 );
 
-// tweak
-q.mFX.pxChain.proxy.fadeTime = 3;
-// add Panic Button?
+
+
+
+
+
+//////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+/// The Preset Quest from Installation ISpendMaLife
+q.mfx.wetsToMove = [ 'wet30', 'wet40', 'wet50', 'wet60', 'wet70', 'wet80', 'wet90',
+	'wet100', 'wet110', 'wet120', 'wet130', ];
+
+q.mfx.fxToPunch = [ '5RLPF', '0turboDLY', '3thrasher', '8wheel', '5Hreveb', '1ixiDist', '2DelaySt', '0_DBComp', '8waber', '3funFilt', '1ring', '0_par_EQ', '1fyrFilt' ].sort;
+
+// make PRESET really work!
+//q.mfx.preset = NodeProxyPreset(q.mfx.fx.pxChain.proxy, q.mfx.wetsToMove);
+
 /*
-q.mFX.pxChain.dump;
-q.mFX.pxChain.proxy.dump;
+ProxyPresetGui( q.mfx.preset )
+q.mfx.preset.setRand;
+q.mfx.preset.setRand;
+q.mfx.fx.pxChain.proxy.nodeMap;
+*/
+
+// work around it!
+
+// this shd just collect the wets from home!
+q.mfx.moveWets = {|env, much=0.8, center = 0.5|
+	// q.mfx.wetsToMove
+	var indices = q.mfx.stayers.asArray.collect{|e| q.mfx.fxToPunch.indexOf(e) + 3};
+	var wez = indices.collect{ |i| (\wet ++ (i*10)).asSymbol };
+	wez.do{|key| q.mfx.mFX.pxChain.proxy.setUni(key, (much.rand2+center).fold(0,1) ) };
+};
+// q.mfx.moveWets(1);
+// q.mfx.moveWets(0.7);
+
+q.mfx.punchFX = {|env, much=0.5|
+	var stayers = q.mfx.fxToPunch.scramble.keep(
+		(q.mfx.fxToPunch.size * much.rand).roundUp.asInteger
+	).sort.asSet;
+	var goers = q.mfx.fxToPunch.asSet - stayers;
+	goers.do{|key| q.mfx.mFX.pxChain.remove(key) };
+	stayers.do{|key| q.mfx.mFX.pxChain.add(key, 1.0.rand.pow(5))};
+	q.mfx.mFX.pxChain.proxy.cleanNodeMap;  //	this.object.resetNodeMap;
+	stayers
+};
+
+// which to
+q.mfx.handomizeSlot = {|env, key, much=0.2, center = 0.5|
+	var whichKeys = q.mfx.fx[key.postcln].postcln.def.argNames.reject{|s|s==\in};
+	whichKeys.do{|key| q.mfx.mFX.pxChain.proxy.setUni(
+		key,
+		(much.rand2+center).fold(0,1)
+	)
+	};
+};
+
+// better check in object order...
+q.mfx.handomizeStayers = {|a, much=0.2, center = 0.5| q.mfx.stayers.do{ |st| q.mfx.handomizeSlot( st, much, center) } };
+
+// q.mfx.stayers = q.mfx.punchFX;
+// q.mfx.moveWets(0.2, 0.4);
+
+// apply one of these on each movement change.
+q.mfx.vary = {
+	if(0.6.coin){
+		q.mfx.stayers = q.mfx.punchFX(0.2, 0.4).postln;
+	};
+	if(0.6.coin){
+		q.mfx.moveWets;		q.mfx.handomizeStayers(1.0);
+	};
+};
+/*
+q.mfx.stayers = q.mfx.punchFX(0.2, 0.4).postln;\;
+q.mfx.moveWets;		q.mfx.handomizeStayers(1.0);
+q.mfx.punchFX(0.2, 0.4).postln;\;
+q.mfx.vary;
 */

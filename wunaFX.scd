@@ -1,15 +1,30 @@
 // f. FranK , imma
+// git universal version! from Dec 2016 on
 /*
-{Saw.ar((60-3).midicps )*0.005}.play
+
+All Delay based things fail the test - increase Serveroption memSize !
+
+Dependencies:
+x bpm.kr;			EnvFilter
+x ~metroIn.ar		EnvFilter
+
+// TEST RUN
+Server.killAll;
+s.options.memSize_( 2.pow(19).asInteger )		// ==~ 10 MB Samplespeicher
+s.boot;
+Ndef(\nois, {PinkNoise.ar(0.8 ! 2)}).play;
+Ndef(\nois).index;
+Ndef(\nois).stop;
+Ndef(\pulzes, { [Pulse, LFTri, SinOsc, Blip].collect(_.ar( ExpRand(5, 800) )).scramble.pow(0.25).product.dup * 2 }).play;
+
+
+{Saw.ar((60-3).midicps )*0.5}.play
 {Saw.ar((60+4).midicps )*0.005}.play
 */
 (
 q = q ? ();
-
-q.numPlayers = 1; 			// how many players to make
+q.numPlayers = 1; 				// how many players to make
 q.numChans = q.numChans ? 2;	// how many ch output
-
-
 
 //=====//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////==========//////////
 
@@ -18,32 +33,26 @@ q.numChans = q.numChans ? 2;	// how many ch output
 q.generatorsLibrary = IdentityDictionary
 [
 	'samplM' -> {| bufnum = 1, inVol = 1, pbRate= 1, laG= 0.4|
-			var gen = PlayBuf.ar(1, bufnum, pbRate.cubed.lag2(laG), loop: 1);
-			var gen2 = PlayBuf.ar(2, bufnum, pbRate.cubed.lag2(laG), loop: 1).sum*0.75;
-			Limiter.ar( gen + gen2 * inVol );
-		}
-	,/*
-	'stereoSampl' -> {|bufnum = 1, inVol = 1, pbRate= 1, laG= 0.4|
-			var gen = PlayBuf.ar(2, bufnum, pbRate.cubed.lag2(laG), loop: 1).sum*0.75;
-			Limiter.ar( gen * inVol );
-		}
-	,*/
-	'tuner' -> { arg which = 0;
-		var two = Saw.ar((60 + [-8, -3, 2, 7] ).midicps ) * 0.1;
-		Select.ar(which, two);
+		var gen = PlayBuf.ar(1, bufnum, pbRate.cubed.lag2(laG), loop: 1);
+		var gen2 = PlayBuf.ar(2, bufnum, pbRate.cubed.lag2(laG), loop: 1).sum*0.75;
+		Limiter.ar( gen + gen2 * inVol );
+	},
+
+	'tuner' -> { arg whichT = 0;
+		var two = Saw.ar((60 + [-8, -3, 2, 7, -1] ).midicps ) * 0.75;
+		Select.ar(whichT, two);
 	},
 	'audioIn' -> {|inChan = 0, inVol = 1|
-			var gen = SoundIn.ar(inChan);
-			gen = HPF.ar(gen, 50);
-			Limiter.ar( gen * inVol );
-		}
+		var gen = SoundIn.ar(inChan);
+		// gen = HPF.ar(gen, 50);
+		Limiter.ar( gen * inVol );
+	}
 	,
 	'busIn' -> {|inBus = 1, inVol2 = 1|
-			var gen = InFeedback.ar(inBus);
-			Limiter.ar( gen * inVol2 );
-		}
+		var gen = InFeedback.ar(inBus);
+		Limiter.ar( gen * inVol2 );
+	}
 	,
-
 	'dusty' -> {|densY=10, freq=1000, decay=0.03| Ringz.ar(Dust.ar(densY), freq, decay) }
 ];
 
@@ -55,18 +64,18 @@ q.fx1to1 = IdentityDictionary
 
 
 	'000_Gate' -> {|in, threshG = 0.01, attG=0.01, decG=1|
-			Compander.ar(
-		 		in, in,
-		 		threshG, 10, 1,
-		 		attG, decG
-			)
+		Compander.ar(
+			in, in,
+			threshG, 10, 1,
+			attG, decG
+		)
 	},
 	'00_Comp' -> {|in, threshC = 0.3, slopLo=0.9, slopHi=0.75, volC = 1|
-			Compander.ar(
-		 		in, in,
-		 		threshC, slopLo, slopHi,
-		 		0.01, 0.05
-			) * volC
+		Compander.ar(
+			in, in,
+			threshC, slopLo, slopHi,
+			0.01, 0.05
+		) * volC
 	},
 	'0freqBal' -> { arg in, bFreq=200, balanz=1;
 		var split, lo;
@@ -75,22 +84,22 @@ q.fx1to1 = IdentityDictionary
 		( split * [ balanz.reciprocal, balanz ] ).sum;
 	}
 	,
-/*	'2e-guit-HP' -> { arg in, freq=55, freq2=5000, rq=0.22, gainE=1.8;
-		var amp = Amplitude.kr(in[0]);
-		BPF.ar(in * gainE,
-			(amp.linexp(0,1, freq, freq2)).fold(20, 19000),
-			rq
-		)
+	/*	'2e-guit-HP' -> { arg in, freq=55, freq2=5000, rq=0.22, gainE=1.8;
+	var amp = Amplitude.kr(in[0]);
+	BPF.ar(in * gainE,
+	(amp.linexp(0,1, freq, freq2)).fold(20, 19000),
+	rq
+	)
 	}
 	,
 
 	'0pitch' -> { arg in, dt=4, pRatio=2;
-		dt = dt.lag(3);
-		in = DelayN.ar(in, 10, dt);
-		in = PitchShift.ar(in, LFNoise1.kr(1).range(0.1,0.3), pRatio);
+	dt = dt.lag(3);
+	in = DelayN.ar(in, 10, dt);
+	in = PitchShift.ar(in, LFNoise1.kr(1).range(0.1,0.3), pRatio);
 	}
-	,
-*/	'0pitch' -> { arg in, dt1=4, dt2=1, dt3=1.5, pRatio1=2, pRatio2=0.5, pRatio3=0.75;
+	,*/
+	'0pitch' -> { arg in, dt1=4, dt2=1, dt3=1.5, pRatio1=2, pRatio2=0.5, pRatio3=0.75;
 		var out = [pRatio1, pRatio2, pRatio3].collect({|piz, i|
 			var dt = [dt1, dt2, dt3][i].lag(3);
 			in = DelayN.ar(in, 10, dt);
@@ -122,10 +131,8 @@ q.fx1to1 = IdentityDictionary
 		rq = timer.expexp(0.1, 10, 1, 0.05).clip(0.01, 2).lag(1/130);
 		ffreq1 = Fold.kr(pitch * 1.5, 20, 18000);
 		ffreq2 = Fold.kr(pitch * timer.sqrt, 20, 18000).lag2(2);
-
-	//	Ringz.ar(K2A.ar(changeTrig), 400, 0.1, 7) +
 		RLPF.ar(in, ffreq1, rq.lag(0.5)) -
-	 	RLPF.ar(in, ffreq2, rq + pi % 1.5 + 0.01)
+		RLPF.ar(in, ffreq2, rq + pi % 1.5 + 0.01)
 	},
 	'0ffunFilt' -> { arg in, gainE=1, attT= 1, dcyT= 2, freq= 2000, octSpan= -5, rq=0.15;
 		var amp;
@@ -141,10 +148,39 @@ q.fx1to1 = IdentityDictionary
 		)
 	}
 	,
-	'1envFilt' -> { arg in, steps=7, dens=0.8, length=0.7, gain=1;
-		var bpm = ~bpm.kr;
-		var beat = ~metroIn.ar(1, 2);
-		var alle4 = ~metroIn.ar(1, 4);
+	/*	'1envFilt' -> { arg in, steps=7, dens=0.8, length=0.7, gain=1;
+	var bpm = ~bpm.kr;
+	var beat = ~metroIn.ar(1, 2);
+	var alle4 = ~metroIn.ar(1, 4);
+	var stepPhasor = beat.madd(steps).floor;
+	var triggerSteppd = HPZ1.ar((beat).madd(steps).floor).abs;
+
+	var hashi = Hasher.ar(stepPhasor
+	+ length.round(0.01)
+	+ Stepper.ar(alle4)
+	).abs;
+	var trigger = hashi < dens * triggerSteppd;
+	var env = EnvGen.ar(Env.new([0, 1, 0],
+	[0.02 * length, 16*(~metroIn.ar(1, 3)*steps).reciprocal-0.0002 * length], [\sin, -3]),
+	Trig.ar(trigger, SampleDur.ir)
+	).clip(0, 1);
+	var filtMiddle = hashi.linexp(0, 1, 80, 8000).lag(1/100);
+	var filtEnvHi = env.linexp(0, 1, 1, 8).madd(filtMiddle * 1.1).clip(20, 20000);
+	var filtEnvLo = env.linexp(0, 1, 1, 1/8).madd(filtMiddle).clip(20, 20000);
+
+	var filteredPair = in.collect({ |inch|
+	RLPF.ar(inch * gain, [filtEnvHi, filtEnvLo], 0.8, [1, -1]).sum
+	});
+	Limiter.ar(filteredPair, 1, 0.0001)
+
+	},*/
+
+	'1envFilt' -> { arg in, steps=4, dens=0.8, length=0.7, gain=1;
+		var bpm = Ndef(\bpm).kr;
+		// var beat = ~metroIn.ar(1, 2);
+		// var alle4 = ~metroIn.ar(1, 4);
+		var beat = LFSaw.ar(bpm/60); // Impulse.ar( bpm/60);
+		var alle4 = PulseDivider.ar(Impulse.ar( bpm/60), 4);
 		var stepPhasor = beat.madd(steps).floor;
 		var triggerSteppd = HPZ1.ar((beat).madd(steps).floor).abs;
 
@@ -154,8 +190,9 @@ q.fx1to1 = IdentityDictionary
 		).abs;
 		var trigger = hashi < dens * triggerSteppd;
 		var env = EnvGen.ar(Env.new([0, 1, 0],
-			[0.02 * length, 16*(~metroIn.ar(1, 3)*steps).reciprocal-0.0002 * length], [\sin, -3]),
-			 Trig.ar(trigger, SampleDur.ir)
+			// [0.02 * length, 16*(~metroIn.ar(1, 3)*steps).reciprocal-0.0002 * length], [\sin, -3]),
+			[0.02 * length, 16*(alle4 * steps).reciprocal-0.0002 * length], [\sin, -3]),
+		Trig.ar(trigger, SampleDur.ir)
 		).clip(0, 1);
 		var filtMiddle = hashi.linexp(0, 1, 80, 8000).lag(1/100);
 		var filtEnvHi = env.linexp(0, 1, 1, 8).madd(filtMiddle * 1.1).clip(20, 20000);
@@ -167,28 +204,29 @@ q.fx1to1 = IdentityDictionary
 		Limiter.ar(filteredPair, 1, 0.0001)
 
 	},
+
 	'2DelayUD'	-> { arg in, delayTime1 = 0.52, delayTime2 = 0.75, mod=0.2, rise=2.5, fall=2;
-	 	var dtKr, comb, modulator, dtActual;
-	 	modulator = ( 1 - LFDNoise3.kr(mod.sqrt ! q.numChans * 4, 0.8 * mod).cubed );
+		var dtKr, comb, modulator, dtActual;
+		modulator = ( 1 - LFDNoise3.kr(mod.sqrt ! q.numChans * 4, 0.8 * mod).cubed );
 		dtKr = [delayTime1, delayTime2 ].lag(1.0);
 		dtActual = dtKr * modulator;
 
-	 	comb = CombL.ar(
-	 		in,
-	 		5.75,
-	 		dtActual,
-	 		dtKr * fall,
-	 		1
-	 	)
-	 	-
-	 	CombL.ar(
-	 		in,
-	 		5.75,
-	 		dtActual,
-	 		dtKr * rise,
-	 		1
-	 	)
-	 	;
+		comb = CombL.ar(
+			in,
+			5.75,
+			dtActual,
+			dtKr * fall,
+			1
+		)
+		-
+		CombL.ar(
+			in,
+			5.75,
+			dtActual,
+			dtKr * rise,
+			1
+		)
+		;
 	}
 	,
 	'2trem' -> { arg in, speedT=6.67, pow=0.7;
@@ -196,93 +234,92 @@ q.fx1to1 = IdentityDictionary
 		* in
 	}
 	,
-/*	'1synDr' -> { arg in, decaa=1, speedS= 1, freQmx= 5000;
-		var amp = Amplitude.kr( in, 0.001, decaa );
-		var lfos = [
-				{ LFDNoise1.kr(speedS * Rand(0.5, 2) ) } ! 3,
-				{ SinOsc.kr(speedS * Rand(0.15, 2) ) } ! 3,
-				{ LFPulse.kr(speedS * Rand(0.5, 3) ) } ! 3
-			].flat.scramble.postln;
-		var selecta = lfos.choose;
-		var sel = Select.kr(selecta.abs.linlin(0,1, 0, lfos.size-1) );
+	/*	'1synDr' -> { arg in, decaa=1, speedS= 1, freQmx= 5000;
+	var amp = Amplitude.kr( in, 0.001, decaa );
+	var lfos = [
+	{ LFDNoise1.kr(speedS * Rand(0.5, 2) ) } ! 3,
+	{ SinOsc.kr(speedS * Rand(0.15, 2) ) } ! 3,
+	{ LFPulse.kr(speedS * Rand(0.5, 3) ) } ! 3
+	].flat.scramble.postln;
+	var selecta = lfos.choose;
+	var sel = Select.kr(selecta.abs.linlin(0,1, 0, lfos.size-1) );
 
-		var sig =
-			Saw.ar( lfos.keep(4).abs.linexp(0, 1, 20, freQmx) ).sum
-			+ LFPulse.ar( lfos.keep(4).abs.linexp(0, 1, 5, freQmx/8), 0, 0.6, [1, -1] ).sum;
-		Limiter.ar(sig * amp * 3)
+	var sig =
+	Saw.ar( lfos.keep(4).abs.linexp(0, 1, 20, freQmx) ).sum
+	+ LFPulse.ar( lfos.keep(4).abs.linexp(0, 1, 5, freQmx/8), 0, 0.6, [1, -1] ).sum;
+	Limiter.ar(sig * amp * 3)
 
 	}
 	,*/
- 	'3thrasher' -> { arg in, bit = 16, downsample= 4000, downsmod=0;
-			var zin, zout;
-			zin = in;
-			zout = zin.round(2.pow(bit).reciprocal);
-			zout = (downsample<22050) *
-				Latch.ar(
-					zout,
-					Impulse.ar(
-						downsample
-						* LFDNoise1.kr(
-							downsmod.cubed * 75,
-							0.25, 0.75
-						).abs
-					)
-				)
-			+ (downsample >= 22050 * zout)
+	'3thrasher' -> { arg in, bit = 16, downsample= 4000, downsmod=0;
+		var zin, zout;
+		zin = in;
+		zout = zin.round(2.pow(bit).reciprocal);
+		zout = (downsample<22050) *
+		Latch.ar(
+			zout,
+			Impulse.ar(
+				downsample
+				* LFDNoise1.kr(
+					downsmod.cubed * 75,
+					0.25, 0.75
+				).abs
+			)
+		)
+		+ (downsample >= 22050 * zout)
 	}
 	,
-  	'0ixiDist' -> { |sig, pregain=0.048, dFreq=5000, postgain=15, dComp=0.6 |
-			var sigtocomp, fx, y, z;
-			sigtocomp = LPF.ar((sig * pregain).distort, dFreq, postgain, sig).distort;
-			fx = Compander.ar(sigtocomp, sigtocomp, 1, dComp, 1 );
-			LeakDC.ar(fx);
-		}
+	'0ixiDist' -> { |sig, pregain=0.048, dFreq=5000, postgain=15, dComp=0.6 |
+		var sigtocomp, fx, y, z;
+		sigtocomp = LPF.ar((sig * pregain).distort, dFreq, postgain, sig).distort;
+		fx = Compander.ar(sigtocomp, sigtocomp, 1, dComp, 1 );
+		LeakDC.ar(fx);
+	}
 	,
- 	'4ixiVerb' -> {| in, predelay=0.048,combdecay=15, apDecay=1, ixivAmp=0.2 |
-			var sig, y, z;
-			sig = in;
-			z = DelayN.ar(sig, 0.1, predelay, ixivAmp);
-			y = Mix.ar(Array.fill(7,{ CombL.ar(z, 0.05, rrand(0.03, 0.05), combdecay) }));
-			6.do({ y = AllpassN.ar(y, 0.050, rrand(0.03, 0.05), apDecay) });
-			y;
-		}
+	'4ixiVerb' -> {| in, predelay=0.048,combdecay=15, apDecay=1, ixivAmp=0.2 |
+		var sig, y, z;
+		sig = in;
+		z = DelayN.ar(sig, 0.1, predelay, ixivAmp);
+		y = Mix.ar(Array.fill(7,{ CombL.ar(z, 0.05, rrand(0.03, 0.05), combdecay) }));
+		6.do({ y = AllpassN.ar(y, 0.050, rrand(0.03, 0.05), apDecay) });
+		y;
+	}
 	,
 	'9endFilt' -> { arg in, hiCut=12000, loCut=130, laG=1;
-		LPF.ar( in, loCut.lag2(laG)) -  LPF.ar( in, hiCut.lag2(laG));
+		LPF.ar( in, hiCut.lag2(laG)) - LPF.ar( in, loCut.lag2(laG));
 	},
 
 	// a Stereo FX; slightly reworked
-		'00bufFUN' -> { arg in, newLvl=01, oldLvl=0.1, secs=1, pitch1= -2, pitch2=1, flip=1, freeze=0;
-			var phaW, trans, env, sd, frams, bs, ot, lagB= 1,usedframs, offs=0, phaR;
-			var buf = LocalBuf.new(10  * SampleRate.ir, 2);	// stereo!!
-			ClearBuf(buf);
-			frams = BufFrames.ir(buf);
-			usedframs = BufSampleRate.ir(buf) * secs.max(0.0001);
-			phaW = Phasor.ar(0, BufRateScale.kr(buf) * K2A.ar(1-freeze.clip(0,1)), 0, usedframs);
-			phaR = Phasor.ar(0,
-				BufRateScale.kr(buf) * flip.clip(-1,1)  * [pitch1, pitch2].midiratio.lag2(lagB) ,
-				0, usedframs
-			);
-			sd = SampleDur.ir;
-			bs = (SampleRate.ir / ControlRate.ir);
+	'00bufFUN' -> { arg in, newLvl=01, oldLvl=0.1, secs=1, pitch1= -2, pitch2=1, flip=1, freeze=0;
+		var phaW, trans, env, sd, frams, bs, ot, lagB= 1,usedframs, offs=0, phaR;
+		var buf = LocalBuf.new(10  * SampleRate.ir, 2);	// stereo!!
+		ClearBuf(buf);
+		frams = BufFrames.ir(buf);
+		usedframs = BufSampleRate.ir(buf) * secs.max(0.001);
+		phaW = Phasor.ar(0, BufRateScale.kr(buf) * K2A.ar(1-freeze.clip(0,1)), 0, usedframs);
+		phaR = Phasor.ar(0,
+			BufRateScale.kr(buf) * flip.clip(-1,1)  * [pitch1, pitch2].midiratio.lag2(lagB) ,
+			0, usedframs
+		);
+		sd = SampleDur.ir;
+		bs = (SampleRate.ir / ControlRate.ir);
 
-			ot = BufRd.ar(2, buf, 		// expands to twice stereo, thus:
-				phaR % usedframs,
-				1, 4
-			).flop * [[1, 1], [0.001, 0.001 ]];
-			ot = ot.sum;				// sum it up
-			ot = Rotate2.ar(ot[0], ot[1], SinOsc.kr( (Amplitude.kr(in.first).squared * 2), 0, 3 ).wrap2(1) );
+		ot = BufRd.ar(2, buf, 		// expands to twice stereo, thus:
+			phaR % usedframs,
+			1, 4
+		).flop * [[1, 1], [0.01, 0.01 ]];
+		ot = ot.sum;				// sum it up
+		ot = Rotate2.ar(ot[0], ot[1], SinOsc.kr( (Amplitude.kr(in.first).squared * 2), 0, 3 ).wrap2(1) );
 
-			BufWr.ar(
-				(in.keep(2) * newLvl.squared.min(1).lag(0.5))
-				+ (ot * oldLvl.lag(0.7).cubed),
-				buf, phaW); // loop rec into the buf
-			ot
+		BufWr.ar(
+			(Splay.ar(in) * newLvl.squared.min(1).lag(0.5))
+			+ (ot * oldLvl.lag(0.7).cubed),
+			buf, phaW); // loop rec into the buf
+		ot
 	}
 ];
 
-q.fx1toN = IdentityDictionary
-[
+q.fx1toN = IdentityDictionary[
 	'00elefnt' ->  { arg in, newLvl= 1, oldLvl= 0, elefRate=1,
 		interval = -12, pitchDrift = 0.01, lag=0.25, speed=1, density=1;
 
@@ -305,8 +342,8 @@ q.fx1toN = IdentityDictionary
 			)
 		} ! numPitchLayers;
 		ot16 = ot
-			* (LFDNoise1.kr(speed ! (numPitchLayers * numVoicesPerLayer), 0.5, 0.5)
-				< density).lag(lag/speed).reshapeLike(ot);
+		* (LFDNoise1.kr(speed ! (numPitchLayers * numVoicesPerLayer), 0.5, 0.5)
+			< density).lag(lag/speed).reshapeLike(ot);
 		ot16.reshapeLike( (0..7) ! 2 ).sum.postln
 	},
 
@@ -316,17 +353,17 @@ q.fx1toN = IdentityDictionary
 		var inMono = in.asArray.sum;
 		var mixIn = Limiter.ar((LocalIn.ar(1) * feedbT) + inMono);
 		var modz = { SinOsc.kr(
-				LFNoise1.kr(1/30).exprange(0.2, 3),
-				Rand(0,2pi),
-				0.75,
-				0.25
-			)
+			LFNoise1.kr(1/30).exprange(0.2, 3),
+			Rand(0,2pi),
+			0.75,
+			0.25
+		)
 		} ! n;
 		var trigz = modz + 0.05 + Impulse.kr(0) > 0;
 		var dts = (mainDT ).lag2(glide) * (TRand.kr(0.1, 1, trigz ) + 0.1);
-// no Filtering, for OEROL..
-//			var ffreqs = TExpRand.ar(50, 9000, trigz).trunc + 70;
-//			var dly = DelayL.ar(mixIn * modz.clip(0, 1), 6, dts);    // nice lil clicky..
+		// no Filtering, for OEROL..
+		//			var ffreqs = TExpRand.ar(50, 9000, trigz).trunc + 70;
+		//			var dly = DelayL.ar(mixIn * modz.clip(0, 1), 6, dts);    // nice lil clicky..
 		var dly = DelayL.ar(mixIn, 6, dts, modz.clip(0, 1));
 		var fltSnd = dly; //BPF.ar(dly, ffreqs, 1.8);
 		var summ = LeakDC.ar(fltSnd.sum);
@@ -346,8 +383,8 @@ q.fx1toN = IdentityDictionary
 		zout = zin;
 		12.do({
 			zout = AllpassL.ar(
- 				Rotate2.ar(zout[0], zout[1], {Rand(-0.6, 0.6)}),
-//				zout, //.rotate(1);
+				Rotate2.ar(zout[0], zout[1], {Rand(-0.6, 0.6)}),
+				//				zout, //.rotate(1);
 				0.08,
 				{Rand(0.001,0.1)}.dup * LFDNoise1.kr(modulation, revTime, revTime),
 				revDecay
@@ -385,14 +422,14 @@ q.fx1toN = IdentityDictionary
 			-0.8, 5
 		)
 
-	 }
+	}
 	,'2dlys' -> { arg in, dlytime=0.1, glide=1;
 		var insnd = (in.asArray.sum);
 		var dlysnd = DelayL.ar(insnd, 20, (1 .. q.numChans)/q.numChans * dlytime.lag2(glide));
 		dlysnd
 	}
 	,
-	'3dlys-Feedb' -> { arg in, dlytime=0.1, feedb = 0.1, glide=4;
+	'3dlys_Feedb' -> { arg in, dlytime=0.1, feedb = 0.1, glide=4;
 		var feedbacksnd = LocalIn.ar(1) * feedb;
 		var insnd = (in.asArray.sum + feedbacksnd );
 		var dlysnd = DelayL.ar(insnd, 20, (1 .. q.numChans) /q.numChans * dlytime.lag2(glide));
@@ -418,16 +455,15 @@ q.fx1toN = IdentityDictionary
 ];
 
 
-q.fxNtoN = IdentityDictionary
-[
+q.fxNtoN = IdentityDictionary[
 	'3_reson' -> { arg in, speedR=0.1, minfreq=440, maxfreq=7000, resonance=0.01;
- 		var fmod = SinOsc.kr(speedR, (1..q.numChans) /q.numChans * 2pi ).exprange(minfreq, maxfreq);
+		var fmod = SinOsc.kr(speedR, (1..q.numChans) /q.numChans * 2pi ).exprange(minfreq, maxfreq);
 		var zout = Ringz.ar(in, fmod, resonance);
 		HPF.ar( zout * 0.25, 80)
 	}
 	,
 	'6_filtu' -> { arg in, speedR=0.1, minfreq=440, maxfreq=7000, reso=0.1;
- 		var fmod = VarSaw.kr(speedR, (1..q.numChans).scramble /q.numChans, {Rand(0.2,0.8)}!q.numChans ).distort.exprange(minfreq, maxfreq);
+		var fmod = VarSaw.kr(speedR, (1..q.numChans).scramble /q.numChans, {Rand(0.2,0.8)}!q.numChans ).distort.exprange(minfreq, maxfreq);
 		BPF.ar(in, fmod, reso, reso.reciprocal.pow(0.2) + 1);
 	},
 
@@ -436,120 +472,56 @@ q.fxNtoN = IdentityDictionary
 
 );
 
-
-////////init//////////////////////////////////////////////////////////////////////
-////////init//////////////////////////////////////////////////////////////////////
-
-Spec.add( \volC -> ControlSpec(0.0, 25, \amp));
-Spec.add( \volG -> ControlSpec(0.0, 25, \amp));
-Spec.add( \inVol -> ControlSpec(0.0, 25, \amp));
-Spec.add( \inVol2 , \inVol.asSpec);
+//////// Spex //////////////////////////////////////////////////////////////////////
+(
+600.do{|i| Spec.add( ("wet" ++ i).asSymbol, \unipolar); };
+600.do{|i| Spec.add( ("mix" ++ i).asSymbol, \unipolar); };
+Spec.add( \inVol, [0.0, 25, \amp]);
+Spec.add( \inVol2 , \inVol);
 Spec.add( \thresh, [0.000001, 1, \exp]);
 Spec.add( \threshG, [0, 1, 3]);
-Spec.add( \threshC -> ControlSpec(0.000001, 1, \exp));
-Spec.add( \pbRate -> ControlSpec(-2, 4, \lin));
-Spec.add( \laG -> ControlSpec(0.01, 40, \exp));
-Spec.add( \mmGain -> ControlSpec(0, 10, \lin));
-Spec.add( \gainE -> ControlSpec(0, 5, \amp));
-
-Spec.add(\freQmx, \widefreq.asSpec);
+Spec.add(\freQmx, \widefreq);
 Spec.add(\speedS, [0.001, 50, \exp]);
 Spec.add(\decaa, [0.001, 3, \exp]);
-Spec.add(\rand, \amp.asSpec);
+Spec.add(\rand, \amp);
 Spec.add(\depth, [0, 1, 5]);
-Spec.add(\distanc, \amp.asSpec);
-Spec.add(\max, [0, 0.5, \lin].asSpec);
-Spec.add(\speed, [1/120, 60, \exp].asSpec);
-
-Spec.add(\inChan2, [0, 7, \lin, 1]);
-Spec.add(\inBus, [1, 256, \lin, 1]);
+Spec.add(\distanc, \amp);
+Spec.add(\max, [0, 0.5, \lin]);
+Spec.add(\speed, [1/120, 60, \exp]);
+Spec.add(\inChan, [0, 7, \lin, 1]);
+Spec.add(\inChan2, \inChan);
+Spec.add(\inBus, [0, 255, \lin, 1]);
 Spec.add(\densY, [0.2, 200, \exp]);
 Spec.add(\decay, [0.002, 1, \exp]);
-Spec.add(\freq2, \freq.asSpec);
+Spec.add(\freq2, \freq);
 Spec.add(\speedT, [0.01, 120, \exp]);
-
-Spec.add( \ampFin -> [0, 4, \lin].asSpec);
-Spec.add( \inAmp -> \gain.asSpec);
-Spec.add( \slopLo -> ControlSpec(1/10, 10, \exp, 0.0));
-Spec.add( \slopHi -> ControlSpec(1/10, 10, \exp, 0.0));
-Spec.add( \loCut, [20, 19990, \exp, 0.0]);
-Spec.add( \hiCut, \slopLo.asSpec);
-Spec.add( \balanz -> ControlSpec(1/30, 30, \exp, 0.0));
-
-Spec.add( \shape -> ControlSpec(1/4, 4, \exp, 0.0));
-Spec.add( \widthA -> ControlSpec(1/10, 5, \exp, 0.0));
-Spec.add( \speedA -> ControlSpec(0, 1, 5, 0.0));
+Spec.add( \ampFin -> [0, 4, \lin]);
+Spec.add( \inAmp -> \gain);
+Spec.add( \loCut, [20, 19990, \exp, 1]);
+Spec.add( \hiCut, \loCut);
 Spec.add(\pAN, [-0.5, 0.5, 0]);
 Spec.add(\spread, [0, 2, \lin, 0.1]);
 Spec.add(\bufnum, [0, 32, 0, 1]);
 Spec.add(\freeze, [0, 1, 0, 1]);
-
-Spec.add( \reso -> ControlSpec(2, 0.01, \exp, 0.0));
-Spec.add( \resonance -> ControlSpec(1/10000, 0.5, \amp, 0.0));
-Spec.add( \speedR -> ControlSpec(1/1000, 12, \exp, 0.0));
-Spec.add( \minfreq -> \freq.asSpec);
-Spec.add( \maxfreq -> \freq.asSpec);
-
-Spec.add( \dlytime -> ControlSpec(1/10000, 20, \exp, 0.0));
-Spec.add( \feedb -> ControlSpec(0, 1.5, \amp, 0.0));
-Spec.add( \glide -> ControlSpec(1/50, 40, \exp, 0.0));
 Spec.add(\mainDT, [0, 6]);
 Spec.add(\feedbT, [0, 1.3, \amp]);
-
-Spec.add( \lagW -> ControlSpec(0.01, 30, \exp, 0.0));
-Spec.add( \speedW -> ControlSpec(0.0001, 4, \exp, 0.0));
-Spec.add( \widthW -> ControlSpec(0.0, 1, \lin, 0.0));
-
-
-Spec.add( \gainL -> ControlSpec(0.1, 10, \exp));
-Spec.add( \gainR -> ControlSpec(0.1, 10, \exp));
-Spec.add( \hifreq -> ControlSpec(600, 19000, \exp));
-Spec.add( \lowfreq -> ControlSpec(10, 500, \exp));
-Spec.add( \freqSpan -> ControlSpec(10, 7000, \exp));
+Spec.add( \minfreq -> \freq);
+Spec.add( \maxfreq -> \freq);
 Spec.add( \octSpan, [-8, 8, \lin]);
-
-Spec.add( \wetRev -> ControlSpec(0, 1, \lin));
-Spec.add( \feedback -> ControlSpec(1, 100, \exp));
-Spec.add( \rise -> ControlSpec(1, 100, \exp));
-Spec.add( \fall -> ControlSpec(1, 100, \exp));
-Spec.add( \delayTime1 -> ControlSpec(0.005, 5.75, \exp));
-Spec.add( \delayTime2 -> ControlSpec(0.005, 5.75, \exp));
-Spec.add( \mod -> ControlSpec(0, 1, \lin));
-
-Spec.add( \revTime -> ControlSpec(0.05, 1, \exp));
-Spec.add( \revDecay -> ControlSpec(0.001, 10, \exp));
-Spec.add( \modulation -> ControlSpec(0, 1, \lin));
-
-Spec.add( \bit -> ControlSpec(16, 2, \lin, 1));
-Spec.add( \downsmod -> ControlSpec(0, 1, \lin));
-Spec.add( \downsample -> ControlSpec(44100/2, 100, \lin));
-
 Spec.add( \dComp, [1, 0, \amp]);
-Spec.add( \dry, \amp.asSpec);
-Spec.add( \dFreq -> \freq.asSpec);
-Spec.add( \pregain -> ControlSpec(0.01, 20, \linear));
-Spec.add( \postgain -> ControlSpec(0.01, 20, \linear));
-
-Spec.add( \attG -> \amp.asSpec);
-Spec.add( \decG -> \amp.asSpec);
-Spec.add( \combScale -> \amp.asSpec);
-Spec.add( \apScale -> \amp.asSpec);
+Spec.add( \dry, \amp);
+Spec.add( \dFreq -> \freq);
+Spec.add( \attG -> \amp);
+Spec.add( \decG -> \amp);
+Spec.add( \combScale -> \amp);
+Spec.add( \apScale -> \amp);
 Spec.add( \predelay -> [0.0001, 0.2, \linear]);
-
-Spec.add( \revDcy -> ControlSpec(0.01, 12, \linear, 0, 1));
-Spec.add( \apDecay -> ControlSpec(0.01, 12, \linear, 0, 1));
-Spec.add( \combdecay -> ControlSpec(0.1, 15, \linear, 0, 15));
-Spec.add( \ixivAmp -> \amp.asSpec);
-Spec.add( \bFreq -> \freq.asSpec);
-
-Spec.add( \pFreq -> \freq.asSpec);
-Spec.add( \pDb -> ControlSpec(-60, 32, \linear, 0, 1));
-Spec.add( \pRq -> \rq.asSpec);
-
-Spec.add( \pow -> ControlSpec(8, 1/8, \exp));
+Spec.add( \ixivAmp -> \amp);
+Spec.add( \bFreq -> \freq);
+Spec.add( \pFreq -> \freq);
+Spec.add( \pRq -> \rq);
 Spec.add( \attT, [0.001, 5, \exp]);
 Spec.add( \dcyT, [0.001, 5, \exp]);
-
 Spec.add( \pRatio, [0.001, 4, \lin]);
 Spec.add( \pRatio1, [0.001, 4, \lin]);
 Spec.add( \pRatio2, [0.001, 4, \lin]);
@@ -558,7 +530,53 @@ Spec.add( \dt, [0.0, 10, \lin]);
 Spec.add( \dt1, [0.0, 10, \lin]);
 Spec.add( \dt2, [0.0, 10, \lin]);
 Spec.add( \dt3, [0.0, 10, \lin]);
-
+Spec.add( \reso, [2, 0.01, \exp, 0.0]);
+Spec.add( \resonance, [1/10000, 0.5, \amp, 0.0]);
+Spec.add( \speedR, [1/1000, 12, \exp, 0.0]);
+Spec.add( \volC, [0.0, 25, \amp]);
+Spec.add( \volG, [0.0, 25, \amp]);
+Spec.add( \threshC, [0.000001, 1, \exp]);
+Spec.add( \pbRate, [-2, 4, \lin]);
+Spec.add( \laG, [0.01, 40, \exp]);
+Spec.add( \mmGain, [0, 10, \lin]);
+Spec.add( \gainE, [0, 5, \amp]);
+Spec.add( \slopLo, [1/10, 10, \exp, 0.0]);
+Spec.add( \slopHi, [1/10, 10, \exp, 0.0]);
+Spec.add( \balanz, [1/30, 30, \exp, 0.0]);
+Spec.add( \shape, [1/4, 4, \exp, 0.0]);
+Spec.add( \widthA, [1/10, 5, \exp, 0.0]);
+Spec.add( \speedA, [0, 1, 5, 0.0]);
+Spec.add( \dlytime, [1/10000, 20, \exp, 0.0]);
+Spec.add( \feedb, [0, 1.5, \amp, 0.0]);
+Spec.add( \glide, [1/50, 40, \exp, 0.0]);
+Spec.add( \lagW, [0.01, 30, \exp, 0.0]);
+Spec.add( \speedW, [0.0001, 4, \exp, 0.0]);
+Spec.add( \widthW, [0.0, 1, \lin, 0.0]);
+Spec.add( \gainL, [0.1, 10, \exp]);
+Spec.add( \gainR, [0.1, 10, \exp]);
+Spec.add( \hifreq, [600, 19000, \exp]);
+Spec.add( \lowfreq, [10, 500, \exp]);
+Spec.add( \freqSpan, [10, 7000, \exp]);
+Spec.add( \wetRev, [0, 1, \lin]);
+Spec.add( \feedback, [1, 100, \exp]);
+Spec.add( \rise, [1, 100, \exp]);
+Spec.add( \fall, [1, 100, \exp]);
+Spec.add( \delayTime1, [0.005, 5.75, \exp]);
+Spec.add( \delayTime2, [0.005, 5.75, \exp]);
+Spec.add( \mod, [0, 1, \lin]);
+Spec.add( \revTime, [0.05, 1, \exp]);
+Spec.add( \revDecay, [0.001, 10, \exp]);
+Spec.add( \modulation, [0, 1, \lin]);
+Spec.add( \bit, [16, 2, \lin, 1]);
+Spec.add( \downsmod, [0, 1, \lin]);
+Spec.add( \downsample, [44100/2, 100, \lin]);
+Spec.add( \pregain, [0.01, 20, \linear]);
+Spec.add( \postgain, [0.01, 20, \linear]);
+Spec.add( \revDcy, [0.01, 12, \linear, 0, 1]);
+Spec.add( \apDecay, [0.01, 12, \linear, 0, 1]);
+Spec.add( \combdecay, [0.1, 15, \linear, 0, 15]);
+Spec.add( \pDb, [-60, 32, \linear, 0, 1]);
+Spec.add( \pow, [8, 1/8, \exp]);
 Spec.add( \density, \amp);
 Spec.add( \newLvl, \amp);
 Spec.add( \oldLvl, [0, 1.1, \amp, 0, 1]);
@@ -572,8 +590,8 @@ Spec.add( \flip, [-1, 1, 0, 1]);
 Spec.add(\dens, \unipolar);
 Spec.add(\length, [0.005, 1.995, \lin]);
 Spec.add( \steps, [2, 32, \exp, 1]);
-Spec.add( \which, [0, 3, \lin, 1]);
-
+Spec.add( \whichT, [0, 4, \lin, 1]);
+);
 
 ////////CHAININ//////////////////////////////////////////////////////////////////////
 ////////CHAININ//////////////////////////////////////////////////////////////////////
@@ -602,20 +620,18 @@ q.genNames = q.generatorsLibrary.keys.asArray.sort;
 q.filterNames = [q.fx1to1, q.fx1toN, q.fxNtoN].collect { |dict| dict.keys.asArray.sort; };
 
 
-
-	// changed from here on:
-
+(
 q.makeChainGui = { |ev, pxChain, chainName, i|
 
 	var guiname = (chainName ++ "gui").asSymbol;
 	var wet2Hide, gui;
-		// ugly, legalise later.
- 	var panicfunc = {
- 		gui.buttons.do(_.valueAction_(0));
- 		pxChain.slotsInUse.asArray.do( pxChain.remove(_) );
- 		pxChain.add('9_ampFin', 1);
+	// ugly, legalise later.
+	var panicfunc = {
+		gui.buttons.do(_.valueAction_(0));
+		pxChain.slotsInUse.asArray.do( pxChain.remove(_) );
+		pxChain.add('9_ampFin', 1);
 
- 	};
+	};
 
 	q.pxChain[guiname] = gui = pxChain.gui(50,
 		[[ 'generators', \label ]]
@@ -633,31 +649,25 @@ q.makeChainGui = { |ev, pxChain, chainName, i|
 
 	gui.parent.bounds_(gui.parent.bounds.moveTo(i * 540 + 360, 330));
 	gui.parent.name_(chainName.asString);
-		// HIDE ampFin wet level, well not TOOO important !
-//	wet2Hide = gui.editGui.replaceKeys.findKeyForValue('9_ampFin');
-//	gui.editGui.ignoreKeys_([wet2Hide]);
+	// HIDE ampFin wet level, well not TOOO important !
+	//	wet2Hide = gui.editGui.replaceKeys.findKeyForValue('9_ampFin');
+	//	gui.editGui.ignoreKeys_([wet2Hide]);
 
-};
+});
 
 
 q.pxChain = (); 	// keep them here by name
 q.numPlayers.do { |i|
 	var name = ("awunaFX" ++ i).asSymbol;
-
-	var px = p[name];
+	var px = Ndef(name);
 	px.ar(q.numChans);
-
 	px.fadeTime = 2.0;
-//	px.set(\bufnum, i+1);
 
 	q.pxChain[name] = ProxyChain.from(px, q.genNames ++ q.filterNames.flat);
 	q.pxChain[name].add('9_ampFin', 1);
 	q.pxChain[name].add('audioIn', 1);
-
-	q.pxChain[name].add('000_Gate', 1);
 	q.pxChain[name].add('1fyrFilt', 0.25);
 	q.pxChain[name].add('3phaserSt', 0.9);
-
 	q.makeChainGui(q.pxChain[name], name, i);
 	px.play(vol:0);
 };
@@ -665,11 +675,9 @@ q.numPlayers.do { |i|
 ///////end init//////////////////////////////////////////////////////////////////////
 
 /** wenn kaputt gegangen:
-
 q.makeChainGui(q.pxChain[\wunaFX0], \wunaFX0, 0);
-
-
 q.pxChain.awunaFX0gui.parent.name_("fer")
 q.pxChain.awunaFX0gui.dump
 **/
 // _________________________ ______________________________________
+">>>>> WuNa FX Chain -git version- loaded <<<<<".postln; \;

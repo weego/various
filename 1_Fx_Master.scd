@@ -15,6 +15,8 @@ ToDo Pauls:
 
 test sound:
 Server.killAll;
+s.options.memSize_( 2.pow(19).asInteger )		// ==~ 10 MB Samplespeicher
+
 s.boot;
 Ndef(\nois, {PinkNoise.ar(0.2! 2)}).play;
 Ndef(\pulzes, { [Pulse, LFTri, SinOsc, Blip].collect(_.ar( ExpRand(5, 800) )).scramble.pow(0.25).product.dup * 2 }).play;
@@ -729,3 +731,4 @@ q.mfx.moveWets;		q.mfx.handomizeStayers(1.0);
 q.mfx.punchFX(0.2, 0.4).postln;\;
 q.mfx.vary;
 */
+">>>>> Master FX -git version- loaded <<<<<".postln; \;
